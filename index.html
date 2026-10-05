@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Module 4: Data Integration and Synchronization</title>
+<style>
+:root{
+  --ink:#111111;
+  --paper:#ffffff;
+  --gray:#f2f2f0;
+  --gray2:#e4e4e0;
+  --accent:#FFD400;
+  --shadow:7px 7px 0 var(--ink);
+  --shadow-sm:4px 4px 0 var(--ink);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  font-family:"Inter","Helvetica Neue",Arial,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+#progress{position:fixed;top:0;left:0;height:5px;background:var(--ink);width:0%;z-index:50;transition:width .25s ease;}
+#counter{position:fixed;top:16px;right:20px;z-index:50;font-size:12px;font-weight:700;letter-spacing:.12em;border:2px solid var(--ink);background:var(--paper);padding:5px 10px;box-shadow:var(--shadow-sm);}
+#deck{height:100vh;width:100vw;position:relative;}
+.slide{
+  position:absolute;inset:0;display:none;
+  padding:64px 7vw 90px;
+  overflow-y:auto;
+  background:var(--paper);
+}
+.slide.active{display:flex;flex-direction:column;animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.kicker{font-size:12px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;display:inline-block;border:2px solid var(--ink);padding:5px 12px;margin-bottom:18px;background:var(--accent);box-shadow:var(--shadow-sm);align-self:flex-start;}
+h1.title{font-size:clamp(40px,6.5vw,84px);line-height:1.02;font-weight:900;letter-spacing:-.02em;text-transform:uppercase;}
+h2.stitle{font-size:clamp(30px,4.4vw,58px);line-height:1.05;font-weight:900;letter-spacing:-.015em;text-transform:uppercase;margin-bottom:8px;}
+.sub{font-size:clamp(15px,1.6vw,21px);font-weight:600;color:#444;margin-bottom:26px;max-width:900px;}
+.rule{height:4px;background:var(--ink);width:90px;margin:18px 0 26px;}
+.grid{display:grid;gap:18px;}
+.g2{grid-template-columns:repeat(2,1fr);}
+.g3{grid-template-columns:repeat(3,1fr);}
+.g4{grid-template-columns:repeat(4,1fr);}
+.card{border:2.5px solid var(--ink);background:var(--paper);padding:20px 22px;box-shadow:var(--shadow);}
+.card.flat{box-shadow:var(--shadow-sm);}
+.card h3{font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;display:flex;align-items:center;gap:9px;}
+.card h3 .num{background:var(--ink);color:var(--paper);min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;padding:0 6px;}
+.card p,.card li{font-size:14.5px;line-height:1.55;color:#222;}
+ul.b{list-style:none;margin-top:4px;}
+ul.b li{padding-left:20px;position:relative;margin-bottom:7px;}
+ul.b li::before{content:"";position:absolute;left:0;top:9px;width:9px;height:9px;background:var(--ink);}
+ul.b li:last-child{margin-bottom:0;}
+ul.check li::before{background:var(--accent);border:2px solid var(--ink);width:8px;height:8px;top:8px;}
+.tag{display:inline-block;border:2px solid var(--ink);padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-right:6px;background:var(--gray);margin-bottom:6px;}
+.tag.acc{background:var(--accent);}
+.def{border-left:8px solid var(--ink);background:var(--gray);padding:18px 22px;font-size:clamp(15px,1.6vw,19px);line-height:1.6;font-weight:500;box-shadow:var(--shadow-sm);margin-bottom:22px;}
+.def b{font-weight:900;}
+.ex{border:2.5px dashed var(--ink);padding:16px 20px;background:var(--paper);margin-top:14px;}
+.ex .lbl{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;background:var(--ink);color:var(--paper);padding:3px 9px;display:inline-block;margin-bottom:8px;}
+.ex p{font-size:13.5px;line-height:1.55;}
+.center{display:flex;align-items:center;justify-content:center;text-align:center;flex:1;flex-direction:column;}
+.vs{display:flex;align-items:stretch;gap:18px;}
+.vs .card{flex:1;}
+.vs .mid{align-self:center;font-weight:900;font-size:22px;border:2.5px solid var(--ink);background:var(--accent);padding:12px 14px;box-shadow:var(--shadow-sm);}
+.flow{display:flex;gap:0;align-items:stretch;margin:14px 0;}
+.step{flex:1;border:2.5px solid var(--ink);background:var(--paper);padding:16px 14px;text-align:center;box-shadow:var(--shadow-sm);position:relative;}
+.step .n{font-size:11px;font-weight:900;letter-spacing:.15em;}
+.step h4{font-size:16px;font-weight:900;text-transform:uppercase;margin:4px 0 6px;}
+.step p{font-size:12.5px;line-height:1.45;color:#333;}
+.step:not(:last-child){margin-right:26px;}
+.step:not(:last-child)::after{content:"";position:absolute;right:-21px;top:50%;width:16px;height:4px;background:var(--ink);}
+/* ETL vs ELT conveyor: packets loop left to right, turning yellow at the
+   transform point. ETL transforms mid-line, ELT transforms inside the lake. */
+
+/* video placeholder */
+.tocItem .tv{margin-left:auto;font-size:10px;font-weight:900;color:var(--ink);letter-spacing:0;flex:none;}
+.videoWrap{width:100%;max-width:1000px;margin:0 auto;page-break-inside:avoid;}
+.player{display:block;width:100%;aspect-ratio:16/9;max-height:44vh;background:var(--ink);border:2.5px solid var(--ink);box-shadow:var(--shadow);object-fit:contain;}
+.player.portrait{width:auto;height:44vh;max-width:100%;margin-left:auto;margin-right:auto;}
+.videoNote{margin-top:14px;text-align:center;font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#555;}
+.videoNote code{background:var(--gray);border:1.5px solid var(--ink);padding:3px 8px;font-family:Consolas,"Courier New",monospace;font-size:12px;font-weight:700;color:var(--ink);letter-spacing:0;text-transform:none;}
+.videoMissing{margin-top:14px;border:2.5px solid var(--ink);background:var(--accent);padding:10px 14px;font-size:13px;font-weight:800;box-shadow:var(--shadow-sm);}
+.videoMissing code{font-family:Consolas,"Courier New",monospace;font-weight:900;}
+@media print{ .pkt{display:none;} .player{max-height:34vh;} }
+
+.pipe{margin:12px 0 0;page-break-inside:avoid;}
+.pipeRow{display:flex;align-items:stretch;gap:10px;}
+.pn{flex:1;border:2.5px solid var(--ink);background:var(--paper);padding:8px 10px;text-align:center;box-shadow:var(--shadow-sm);}
+.pn b{display:block;font-size:13px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;}
+.pn .pnStep{display:block;font-size:9.5px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#555;margin-bottom:2px;}
+.pn span{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#555;margin-top:3px;line-height:1.35;}
+.pn.src{background:var(--ink);}
+.pn.src b{color:var(--paper);}
+.pn.src span{color:#8f8f8f;}
+.pn.hot{background:var(--accent);}
+.pn.dst{background:var(--ink);}
+.pn.dst b{color:var(--paper);}
+.pn.dst span{color:#8f8f8f;}
+.pn .chip{display:inline-block;margin-top:5px;border:2px solid var(--ink);background:var(--accent);color:var(--ink);padding:1px 7px;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;}
+.pipeTrack{position:relative;height:26px;margin:8px 4px 0;}
+.pipeTrack::before{content:"";position:absolute;left:0;right:0;top:11px;height:4px;background:var(--ink);}
+.pipe.etl .pipeTrack::before{background:linear-gradient(90deg,var(--ink) 0 40%,var(--accent) 40% 60%,var(--ink) 60% 100%);}
+.pipe.elt .pipeTrack::before{background:linear-gradient(90deg,var(--ink) 0 75%,var(--accent) 75% 100%);}
+.pipeArrow{position:absolute;top:7px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;}
+.pipeArrow.r{right:-2px;border-left:9px solid var(--ink);}
+.pipeArrow.l{left:-2px;border-right:9px solid var(--ink);}
+.pkt{position:absolute;top:1px;left:0;width:22px;height:22px;margin-left:-11px;border:2.5px solid var(--ink);background:var(--paper);animation:pipeRun 4.4s linear infinite;}
+@keyframes pipeRun{from{left:0%;}to{left:100%;}}
+.pipe.etl .pkt{animation-name:pipeRunETL;}
+@keyframes pipeRunETL{
+  0%{left:0%;background:var(--paper);}
+  44%{background:var(--paper);}
+  50%{background:var(--accent);}
+  76%{background:var(--accent);}
+  82%{background:var(--ink);}
+  100%{left:100%;background:var(--ink);}
+}
+.pipe.elt .pkt{animation-name:pipeRunELT;}
+@keyframes pipeRunELT{
+  0%{left:0%;background:var(--paper);}
+  70%{background:var(--paper);}
+  78%{background:var(--accent);}
+  100%{left:100%;background:var(--accent);}
+}
+.pipeLegend{display:flex;gap:20px;justify-content:center;margin-top:8px;font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:#555;}
+.pipeLegend span{display:inline-flex;align-items:center;gap:7px;}
+.pipeLegend i{width:14px;height:14px;border:2px solid var(--ink);}
+.pipeLegend i.raw{background:var(--paper);}
+.pipeLegend i.tf{background:var(--accent);}
+.pipeLegend i.ld{background:var(--ink);}
+.pipeVerdict{margin-top:12px;border:2.5px solid var(--ink);background:var(--gray);padding:9px 13px;font-size:13px;line-height:1.45;box-shadow:var(--shadow-sm);}
+.pipeVerdict b{font-weight:900;}
+@media print{ .pkt{display:none;} }
+.note{font-size:12.5px;color:#555;margin-top:14px;line-height:1.5;}
+.small{font-size:12.5px;color:#555;}
+table.tb{width:100%;border-collapse:collapse;border:2.5px solid var(--ink);box-shadow:var(--shadow);background:var(--paper);}
+table.tb th{background:var(--ink);color:var(--paper);font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;padding:12px 14px;text-align:left;}
+table.tb td{border:2px solid var(--ink);padding:12px 14px;font-size:13.5px;line-height:1.5;vertical-align:top;}
+table.tb tr:nth-child(even) td{background:var(--gray);}
+.nav{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:10px;align-items:center;}
+.nav button{border:2.5px solid var(--ink);background:var(--paper);font-family:inherit;font-weight:900;font-size:13px;letter-spacing:.08em;padding:10px 20px;cursor:pointer;box-shadow:var(--shadow-sm);text-transform:uppercase;transition:transform .1s;}
+.nav button:hover{background:var(--accent);}
+.nav button:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink);}
+#toc{position:fixed;inset:0;background:var(--paper);z-index:100;display:none;padding:56px 7vw;overflow-y:auto;}
+#toc.open{display:block;}
+#toc h2{font-size:30px;font-weight:900;text-transform:uppercase;margin-bottom:20px;}
+#tocGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start;}
+.tocGroup{border:2px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);}
+.tgHead{background:var(--ink);color:var(--paper);padding:9px 13px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between;}
+.tgHead .tgLabel{font-size:12.5px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;}
+.tgHead .tgBy{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:var(--ink);padding:3px 8px;}
+.tgList{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:7px;padding:10px;}
+.tocItem{border:1.5px solid var(--ink);padding:8px 11px;cursor:pointer;font-size:12.5px;font-weight:700;background:var(--paper);display:flex;gap:9px;align-items:baseline;}
+.tocItem:hover{background:var(--accent);}
+.tocItem .tn{font-weight:900;font-size:10.5px;letter-spacing:.1em;color:#555;min-width:24px;}
+/* a vertical clip gets a vertical frame instead of a letterboxed sliver */
+/* standalone overlay buttons (index open + close). Must NOT reuse .nav: that class
+   carries bottom:18px + display:flex for the button row and stretches a fixed
+   button into a full-height overlay, and .nav button{} cannot style it. */
+.uiBtn{
+  position:fixed;display:inline-flex;align-items:center;gap:9px;
+  border:2.5px solid var(--ink);background:var(--paper);color:var(--ink);
+  font-family:inherit;font-weight:900;font-size:12px;letter-spacing:.1em;
+  text-transform:uppercase;padding:9px 15px;cursor:pointer;
+  box-shadow:var(--shadow-sm);z-index:60;transition:transform .1s;
+}
+.uiBtn:hover{background:var(--accent);}
+.uiBtn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink);}
+.uiBtn.on{background:var(--accent);}
+.uiBtn .bars{width:15px;height:11px;flex:none;display:flex;flex-direction:column;justify-content:space-between;}
+.uiBtn .bars i{display:block;height:2.5px;background:var(--ink);}
+#tocBtn{top:14px;left:20px;}
+#tocClose{top:14px;right:20px;z-index:120;}
+body.toc-open #counter{visibility:hidden;}
+/* prev / next button row: hidden on request. Delete this one rule to bring the
+   buttons back (keyboard arrows, swipe and the slide index still navigate). */
+.nav{display:none;}
+/* bottom credit bar: docked flat to the bottom edge of the viewport, so the
+   name is never a floating box over the slide content */
+#creditbar{
+  position:fixed;left:0;right:0;bottom:0;height:32px;z-index:45;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:0 18px;background:var(--ink);pointer-events:none;
+}
+#barHint{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8f8f8f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.spCredit{display:inline-flex;align-items:center;gap:9px;flex:none;}
+.spCredit[hidden]{display:none;}
+.spCredit .spLbl{font-size:10px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:#8f8f8f;}
+.spCredit .spName{font-size:11.5px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;background:var(--accent);color:var(--ink);padding:3px 10px;}
+/* same credit as a normal in-flow line at the end of each slide, used only for
+   print / PDF export so the deck still names the presenter on paper */
+.presenter{
+  display:none;margin-top:auto;align-self:flex-end;align-items:center;gap:10px;
+  border:2px solid var(--ink);background:var(--paper);padding:6px 13px;
+  font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  box-shadow:var(--shadow-sm);
+}
+.presenter .lb{color:#555;font-weight:800;}
+.presenter b{font-weight:900;}
+@media (max-width:720px){#creditbar{height:30px;padding:0 12px;}#barHint{font-size:9px;letter-spacing:.06em;}.spCredit .spLbl{font-size:9px;letter-spacing:.12em;}.spCredit .spName{font-size:10px;padding:2px 7px;}}
+.svgicon{width:20px;height:20px;flex:none;}
+@media (max-width:900px){.g3,.g4{grid-template-columns:repeat(2,1fr);}.g2{grid-template-columns:1fr;}.vs{flex-direction:column;}.vs .mid{align-self:center;}.flow{flex-direction:column;}.step:not(:last-child){margin-right:0;margin-bottom:22px;}.step:not(:last-child)::after{right:50%;top:auto;bottom:-19px;width:4px;height:16px;}}
+@media print{ .slide{position:relative;display:flex;page-break-after:always;height:auto;min-height:100vh;padding:30px 6vw 40px;}  #counter,.nav,.uiBtn,#creditbar,#progress{display:none;} .presenter{display:flex;} }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="counter">1 / 66</div>
+<div id="creditbar"><span id="barHint">&larr; &rarr; navigate &nbsp;·&nbsp; swipe on touch &nbsp;·&nbsp; G index &nbsp;·&nbsp; Home/End jump</span><span class="spCredit" hidden><span class="spLbl">Presented by</span><span class="spName"></span></span></div>
+<button class="uiBtn" id="tocBtn" aria-expanded="false" aria-controls="toc"><span class="bars"><i></i><i></i><i></i></span>Index</button>
+
+<div id="deck">
+
+<!-- 1 COVER -->
+<section class="slide active" data-group="front">
+  <div class="center">
+    <span class="kicker">Module 4 · Systems Integration &amp; Architecture</span>
+    <h1 class="title">Data Integration<br>&amp; Synchronization</h1>
+    <div class="rule" style="margin-left:auto;margin-right:auto;"></div>
+    <p class="sub" style="text-align:center;margin:0 auto;">Strategies · Transformation · Quality · Master Data · Replication · Real-Time Integration</p>
+    <div style="margin-top:34px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+      <span class="tag acc">ETL</span><span class="tag acc">ELT</span><span class="tag acc">Data Virtualization</span><span class="tag acc">MDM</span><span class="tag acc">CDC</span><span class="tag acc">iPaaS</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2 ROADMAP -->
+<section class="slide" data-group="front">
+  <span class="kicker">Module Contents</span>
+  <h2 class="stitle">What This Module Covers</h2>
+  <div class="rule"></div>
+  <div class="grid g3">
+    <div class="card"><h3><span class="num">A</span>Integration Strategies</h3><p>ETL, ELT, and data virtualization: the three core approaches to combining data.</p></div>
+    <div class="card"><h3><span class="num">B</span>Transformation &amp; Mapping</h3><p>Converting and mapping data between formats while preserving quality.</p></div>
+    <div class="card"><h3><span class="num">C</span>Quality &amp; Cleansing</h3><p>Evaluating, improving, and standardizing data across dimensions of quality.</p></div>
+    <div class="card"><h3><span class="num">D</span>Master Data Mgmt.</h3><p>Maintaining consistent, accurate master data across the organization.</p></div>
+    <div class="card"><h3><span class="num">E</span>Sync &amp; Replication</h3><p>Keeping identical data consistent across distributed databases and systems.</p></div>
+    <div class="card"><h3><span class="num">F</span>Real-Time Integration</h3><p>Processing and synchronizing data in real time for timely, accurate updates.</p></div>
+  </div>
+</section>
+
+<!-- 3 OBJECTIVES -->
+<section class="slide" data-group="front">
+  <span class="kicker">Course Intended Learning Outcomes</span>
+  <h2 class="stitle">What You Will Learn</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card flat"><h3>Core Concepts</h3><ul class="b"><li>Understand data integration &amp; synchronization and their importance for consistency and coherence across multiple systems.</li><li>Identify challenges of integrating and synchronizing data in heterogeneous environments.</li><li>Explain the business value of effective integration and synchronization.</li></ul></div>
+    <div class="card flat"><h3>Approaches &amp; Patterns</h3><ul class="b"><li>Explore batch processing, real-time streaming, and change data capture (CDC).</li><li>Understand ETL and ELT processes.</li><li>Explore hub-and-spoke, star schema, and data virtualization patterns.</li></ul></div>
+    <div class="card flat"><h3>Technologies &amp; Quality</h3><ul class="b"><li>Learn ETL/ELT tools, integration platforms, and synchronization frameworks.</li><li>Understand data governance and quality roles in integration.</li><li>Apply mapping, transformation, and cleansing techniques.</li></ul></div>
+    <div class="card flat"><h3>Consistency &amp; Practice</h3><ul class="b"><li>Understand replication and synchronization for distributed systems.</li><li>Learn master-slave replication, two-phase commit, and eventual consistency.</li><li>Gain hands-on experience; consider scalability, performance, and security.</li><li>Apply best practices: data modeling, metadata management, error handling; stay current with trends.</li></ul></div>
+  </div>
+</section>
+
+<!-- 4 INTRO -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Introduction</span>
+  <h2 class="stitle">What Is Data Synchronization?</h2>
+  <div class="rule"></div>
+  <div class="def"><b>Data synchronization</b> is the process of integrating data from several sources, applications, and devices while ensuring the data remain <b>consistent</b>. It is a continuous process, always ongoing, for both new data and old data.</div>
+  <div class="grid g2">
+    <div class="card"><h3>The Reality of Modern Business</h3><ul class="b"><li>Every company uses <b>hundreds of apps</b> for data collection and management.</li><li>Many businesses use <b>more than 200 different software applications</b>.</li><li>With information flowing from so many places, databases easily become <b>disconnected and unorganized</b> if they do not communicate.</li></ul></div>
+    <div class="card"><h3>When Data Is in Sync</h3><ul class="b check"><li>Gain a comprehensive understanding of all facets of business intelligence.</li><li>Generate trustworthy, actionable reports.</li><li>Make educated decisions and communicate openly.</li><li>Direct departments toward common objectives.</li></ul></div>
+  </div>
+</section>
+
+<!-- 5 PROBLEMS -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Introduction</span>
+  <h2 class="stitle">What Happens When Data Falls Out of Sync</h2>
+  <div class="rule"></div>
+  <p class="sub">Out-of-sync data leads to a wide variety of business problems:</p>
+  <div class="grid g3">
+    <div class="card"><h3><span class="num">01</span>Data Silos</h3><p>Information trapped in isolated systems, invisible to the rest of the organization.</p></div>
+    <div class="card"><h3><span class="num">02</span>Conflicting or Redundant Data</h3><p>Different versions of the same records contradict each other across systems.</p></div>
+    <div class="card"><h3><span class="num">03</span>Low Data Quality</h3><p>Data becomes inaccurate, incomplete, or out of date.</p></div>
+    <div class="card"><h3><span class="num">04</span>Excess Data</h3><p>Uncontrolled duplication and accumulation of unnecessary information.</p></div>
+    <div class="card"><h3><span class="num">05</span>Collaboration Problems</h3><p>Breakdowns in both collaboration and communication between teams.</p></div>
+    <div class="card" style="background:var(--accent);"><h3>The Fix</h3><p>Continuous synchronization keeps every system speaking the same language, one consistent, trustworthy version of the data.</p></div>
+  </div>
+</section>
+
+<!-- 6 SYNC VS INTEGRATION -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Key Distinctions</span>
+  <h2 class="stitle">Synchronization vs. Integration</h2>
+  <div class="rule"></div>
+  <div class="def"><b>Data integration</b> is the process of merging two or more pieces of software so they function in conjunction with one another.</div>
+  <div class="grid g2">
+    <div class="card"><h3>Integration</h3><ul class="b"><li>A broad concept with <b>many possible strategies</b>.</li><li>Integration can be accomplished in a variety of ways.</li><li>Not all integration methods produce perfectly consistent data.</li></ul></div>
+    <div class="card" style="background:var(--accent);"><h3>Synchronization</h3><ul class="b"><li><b>One type of integration</b> in which data in two or more databases remain consistent with one another.</li><li>Maintains <b>constant communication</b> between databases, the key word is "<b>keep</b>."</li><li>A continual process involving multiple instruments.</li></ul></div>
+  </div>
+  <div class="ex"><span class="lbl">In a nutshell</span><p>Data synchronization is a <b>subset</b> of integration, but not all integration methods lead to a data set that is in perfect sync with itself.</p></div>
+</section>
+
+<!-- 7 SYNC VS REPLICATION -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Key Distinctions</span>
+  <h2 class="stitle">Synchronization vs. Replication</h2>
+  <div class="rule"></div>
+  <div class="vs">
+    <div class="card"><h3>Data Synchronization</h3><p>Implies that there are <b>several versions of data that have been brought up to date</b>.</p><p class="note">Emphasis: keeping versions current with each other.</p></div>
+    <div class="mid">VS</div>
+    <div class="card"><h3>Data Replication</h3><p>Implies that there exist <b>two or more complete, identical copies</b> of the data.</p><p class="note">Emphasis: complete duplication of the data set.</p></div>
+  </div>
+  <div class="ex"><span class="lbl">Relationship</span><p>Both terms refer to collections of data, each emphasizing a distinctive aspect. Like integration, <b>data synchronization can be a form of data replication</b>, but not all data synchronizations result in complete replications of the data.</p></div>
+</section>
+
+<!-- 8 ONE-WAY VS TWO-WAY -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Key Distinctions</span>
+  <h2 class="stitle">One-Way vs. Two-Way (Bi-Directional) Sync</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card">
+      <h3><span class="num">→</span>One-Way Sync</h3>
+      <ul class="b"><li>Data syncs in <b>one direction only</b>, typically within a single tool or place.</li><li>Also called <b>data pushes</b> in various contexts.</li><li><b>Examples:</b> data transferred to a data warehouse; data stored locally within an application.</li></ul>
+      <div class="ex"><span class="lbl">Scenario</span><p>Automate data transfer from an app to a desktop folder: the app updates the folder, but modifying the folder has <b>no effect</b> on the app's data.</p></div>
+    </div>
+    <div class="card">
+      <h3><span class="num">↔</span>Two-Way / Bi-Directional</h3>
+      <ul class="b"><li>Editing <b>either system updates the other automatically</b>, and vice versa.</li><li>No single source file exists in case something is changed or destroyed by accident.</li></ul>
+      <div class="ex"><span class="lbl">Scenario</span><p>Google Calendar and Outlook Calendar connected: edit one calendar and the other updates automatically, in both directions.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 WHY -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Introduction</span>
+  <h2 class="stitle">Why Keep All Data in Sync?</h2>
+  <div class="rule"></div>
+  <p class="sub">Synchronization is necessary to produce a consistent experience. It impacts customers, employees, and stakeholders, and informs sales goals, methods, and growth.</p>
+  <div class="grid g2">
+    <div class="card"><h3><span class="num">01</span>Keeping Data Secure</h3><p>Data is an asset. Proper synchronization techniques protect data from corruption and keep it in a more secure state.</p></div>
+    <div class="card"><h3><span class="num">02</span>Maintaining Data Quality</h3><p>Manual editing is time-consuming and expensive. Synchronization ensures businesses always have the most accurate information while preventing errors and correcting mistakes with significant repercussions.</p></div>
+    <div class="card"><h3><span class="num">03</span>Quality Data Management</h3><p>High-quality data administration requires a solid basis to achieve consistency. Inaccurate data and workarounds produce inconsistent reports. Synchronized data instills confidence in important choices.</p></div>
+    <div class="card"><h3><span class="num">04</span>Data Harmonization</h3><p>Creating a unified set of data from several data types, fields, and formats, making it simpler to evaluate and visualize data relevant to objectives. Sync helps bring disparate data streams into harmony, improving safety, reliability, and efficiency.</p></div>
+  </div>
+</section>
+
+<!-- 10 HOW: OVERVIEW -->
+<section class="slide" data-group="intro">
+  <span class="kicker">How to Synchronize Data</span>
+  <h2 class="stitle">Four Paths to Synchronized Databases</h2>
+  <div class="rule"></div>
+  <div class="grid g4">
+    <div class="card"><h3><span class="num">1</span>Built-In Integrations</h3><p>Use native integrations already available between the applications you use.</p></div>
+    <div class="card"><h3><span class="num">2</span>Custom Integrations</h3><p>Software built by your team specifically for your business requirements.</p></div>
+    <div class="card"><h3><span class="num">3</span>iPaaS Providers</h3><p>Third-party Integration Platform as a Service with automated integration tools.</p></div>
+    <div class="card"><h3><span class="num">4</span>Right-Fit Strategy</h3><p>Choose the option most suitable for your company, data types, and systems.</p></div>
+  </div>
+  <div class="note">Companies use a wide variety of tools at once, collecting value from disparate data requires significant time and knowledge. Synchronization brings those streams together.</div>
+</section>
+
+<!-- 11 NATIVE -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Option 1</span>
+  <h2 class="stitle">Built-In (Native) Integrations</h2>
+  <div class="rule"></div>
+  <div class="def"><b>Native integrations</b> occur when two applications you already use can be immediately integrated with one another, typically via <b>APIs</b> (application programming interfaces). After integration, data moves freely between the two apps.</div>
+  <div class="grid g2">
+    <div class="card"><h3>Strengths</h3><ul class="b check"><li>A fantastic tool for automating specific procedures.</li><li>Meets the needs of a wide variety of typical use cases.</li><li>The most risk-free and straightforward sync method when available.</li></ul></div>
+    <div class="card"><h3>Limitations</h3><ul class="b"><li>Often operate in <b>one direction only</b>.</li><li>Typically fall into the category of <b>data pushes</b> rather than true data syncs.</li></ul></div>
+  </div>
+</section>
+
+<!-- 12 CUSTOM -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Option 2</span>
+  <h2 class="stitle">Custom Integrations</h2>
+  <div class="rule"></div>
+  <div class="def"><b>Custom integrations</b> are pieces of software developed specifically by your team to meet the requirements of your business.</div>
+  <div class="grid g3">
+    <div class="card"><h3>Capability</h3><p>True data synchronization can be accomplished, including <b>two-way, real-time</b> consistency.</p></div>
+    <div class="card"><h3>The Challenge</h3><p>Difficult to develop software that keeps data synchronized in <b>two directions and in real time</b>.</p></div>
+    <div class="card"><h3>The Cost</h3><p>Building something like this is <b>laborious, time-consuming, and costly</b>.</p></div>
+  </div>
+</section>
+
+<!-- 13 IPAAS -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Option 3</span>
+  <h2 class="stitle">iPaaS: Integration Platform as a Service</h2>
+  <div class="rule"></div>
+  <div class="def"><b>iPaaS</b> is a cloud-based solution provided by a third party, offering a wide variety of automated technologies to help you integrate multiple pieces of software.</div>
+  <p class="sub" style="margin-bottom:12px;">Their tools may contain options for:</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;">
+    <span class="tag acc">Cloud-based development procedures</span><span class="tag acc">Integration flow operations</span><span class="tag acc">Data governance</span><span class="tag acc">Cloud computing services</span><span class="tag acc">Applications</span><span class="tag acc">Data management</span>
+  </div>
+  <div class="ex"><span class="lbl">Caution</span><p>There are many distinct kinds of iPaaS technologies: <b>not all are fantastic for keeping data in sync</b>. Those that specialize in data syncing frequently synchronize multiple types of data so it is possible to use them all at the same time.</p></div>
+</section>
+
+<!-- 14 CHOOSE -->
+<section class="slide" data-group="intro">
+  <span class="kicker">Option 4</span>
+  <h2 class="stitle">Choosing the Right Synchronization Option</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card"><h3>Start With Key Questions</h3><ul class="b"><li>Which kinds of data do you want to synchronize?</li><li>Which kinds of software applications do you want to integrate?</li><li>How do you want the data to flow between your apps?</li></ul></div>
+    <div class="card"><h3>Decision Guidance</h3><ul class="b"><li><b>Native integration available and solves your problem?</b> Use it, risk-free and straightforward.</li><li><b>Can't use native or build custom?</b> You'll likely use an iPaaS, remember tools differ in data types, app categories, and use cases.</li><li>You will likely need to <b>use a variety of tools concurrently</b> for a well-tuned technology ecosystem.</li></ul></div>
+  </div>
+  <div class="ex" style="margin-top:18px;"><span class="lbl">Don't Forget Historical Data</span><p>Historical data = any data already present <b>before</b> synchronization began. Most tools perform an <b>initial sync</b> that searches your databases and transfers data so both apps are identical. Decide whether certain parts of your data need to sync differently, independent data pushes may <b>overlap or cancel each other out</b>. Most methods let you keep app-specific data (e.g., segmentation). Organize options in a <b>spreadsheet</b>, then find tools that fit your systems and budget.</p></div>
+</section>
+<!-- VIDEO intro -->
+<section class="slide" data-group="intro" data-video="01-how-to-synchronize-data">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">How to Synchronize Data: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EHOW%20TO%20SYNCHRONIZE%20DATA%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\01-how-to-synchronize-data.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 15 A OVERVIEW -->
+<section class="slide" data-group="a">
+  <span class="kicker">Topic A</span>
+  <h2 class="stitle">Data Integration Strategies</h2>
+  <div class="rule"></div>
+  <div class="def"><b>Data integration</b> is the process of merging data obtained from a variety of sources into a single, coherent whole. It entails gathering data in one place, putting it into a standard format, and ensuring quality and consistency throughout.</div>
+  <div class="grid g3">
+    <div class="card"><h3><span class="num">1</span>ETL</h3><p><b>Extract, Transform, Load</b>, transform data before loading it into the target system.</p></div>
+    <div class="card"><h3><span class="num">2</span>ELT</h3><p><b>Extract, Load, Transform</b>, load raw data first, then transform inside the target system.</p></div>
+    <div class="card"><h3><span class="num">3</span>Data Virtualization</h3><p>Access and query data from multiple sources <b>without physically moving or copying it</b>.</p></div>
+  </div>
+</section>
+
+<!-- 16 ETL -->
+<section class="slide" data-group="a">
+  <span class="kicker">Strategy 1</span>
+  <h2 class="stitle">ETL: Extract, Transform, Load</h2>
+  <div class="rule"></div>
+  <div class="def">A conventional data integration technique: extract data from source systems, <b>alter it to suit the target data model or requirements</b>, then load it into a destination system or data warehouse. Strong emphasis on transformation <b>before</b> loading; often uses a dedicated ETL tool or platform.</div>
+  <div class="pipe etl">
+    <div class="pipeRow">
+      <div class="pn src"><b>Source</b><span>Store databases</span></div>
+      <div class="pn"><span class="pnStep">Step 1</span><b>Extract</b><span>Pull data from each source system.</span></div>
+      <div class="pn hot"><span class="pnStep">Step 2</span><b>Transform</b><span>Normalize, apply business rules, aggregate.</span></div>
+      <div class="pn"><span class="pnStep">Step 3</span><b>Load</b><span>Store into the central data warehouse.</span></div>
+      <div class="pn dst"><b>Warehouse</b><span>Central data store</span></div>
+    </div>
+    <div class="pipeTrack"><i class="pkt" style="animation-delay:-0.1s"></i><i class="pkt" style="animation-delay:-0.85s"></i><i class="pkt" style="animation-delay:-1.6s"></i><i class="pkt" style="animation-delay:-2.35s"></i><i class="pkt" style="animation-delay:-3.1s"></i><i class="pkt" style="animation-delay:-3.85s"></i><i class="pipeArrow r"></i></div>
+    <div class="pipeLegend"><span><i class="raw"></i>Raw row</span><span><i class="tf"></i>Transformed</span><span><i class="ld"></i>Loaded</span></div>
+    <div class="pipeVerdict"><b>Watch the yellow:</b> the row turns yellow <b>before</b> it is loaded, because the cleaning happens in the pipeline, outside the warehouse.</div>
+  </div>
+  <div class="ex"><span class="lbl">Example</span><p>A retail corporation with many stores compiles sales statistics from all of them. Sales data from each store's database is extracted, transformed (normalized, business rules applied, aggregated at regional/corporate level), then loaded into a central data warehouse for analysis and reporting.</p></div>
+</section>
+
+<!-- 17 ELT -->
+<section class="slide" data-group="a">
+  <span class="kicker">Strategy 2</span>
+  <h2 class="stitle">ELT: Extract, Load, Transform</h2>
+  <div class="rule"></div>
+  <div class="def">An alternative technique: extract data from source systems, load it into a target system or data lake <b>as-is</b>, then conduct transformations <b>directly within the target system</b> using its processing capabilities. Handles massive volumes and complex transformations by leveraging the power and scalability of modern data platforms.</div>
+  <div class="pipe elt">
+    <div class="pipeRow">
+      <div class="pn src"><b>Source</b><span>Social feeds, apps</span></div>
+      <div class="pn"><span class="pnStep">Step 1</span><b>Extract</b><span>Pull data from all sources.</span></div>
+      <div class="pn"><span class="pnStep">Step 2</span><b>Load</b><span>Load raw into the data lake as-is.</span></div>
+      <div class="pn dst"><b>Data Lake</b><span class="pnStep">Step 3</span><span>Transform inside the target platform.</span></div>
+    </div>
+    <div class="pipeTrack"><i class="pkt" style="animation-delay:-0.1s"></i><i class="pkt" style="animation-delay:-0.85s"></i><i class="pkt" style="animation-delay:-1.6s"></i><i class="pkt" style="animation-delay:-2.35s"></i><i class="pkt" style="animation-delay:-3.1s"></i><i class="pkt" style="animation-delay:-3.85s"></i><i class="pipeArrow r"></i></div>
+    <div class="pipeLegend"><span><i class="raw"></i>Raw row</span><span><i class="tf"></i>Transformed</span></div>
+    <div class="pipeVerdict"><b>Watch the yellow:</b> the row stays white the whole way and only turns yellow <b>inside the lake</b>, because the transformation is done by the target platform, not by the pipeline.</div>
+  </div>
+  <div class="ex"><span class="lbl">Example</span><p>A big data setting: social media feeds and customer interactions are extracted and fed into a data lake with minimal transformation. Distributed processing frameworks such as <b>Apache Spark or Hadoop</b> perform cleaning, enrichment, and aggregation within the lake itself.</p></div>
+</section>
+
+<!-- 18 DV -->
+<section class="slide" data-group="a">
+  <span class="kicker">Strategy 3</span>
+  <h2 class="stitle">Data Virtualization</h2>
+  <div class="rule"></div>
+  <div class="def">An integration approach that enables users to access data from a variety of sources <b>without physically moving or reproducing the data</b>. A logical or virtual layer encapsulates the underlying sources, enabling unified access and querying.</div>
+  <div class="ex"><span class="lbl">Example</span><p>A company builds a unified dashboard combining customer and sales data from an ERP system, sales data from a CRM system, and social media analytics from an external platform. Data virtualization lets the dashboard access and analyze all of it <b>in real time</b>, without physically consolidating everything into a single repository.</p></div>
+  <div class="grid g2" style="margin-top:18px;">
+    <div class="card flat"><h3>Strengths</h3><ul class="b check"><li>Real-time access to diverse sources.</li><li>Uniform perspective without extensive migration or consolidation.</li></ul></div>
+    <div class="card flat"><h3>Best When</h3><ul class="b"><li>There is a requirement for real-time access to a variety of data sources.</li><li>Physical consolidation is impractical or unnecessary.</li></ul></div>
+  </div>
+</section>
+
+<!-- 19 COMPARE -->
+<section class="slide" data-group="a">
+  <span class="kicker">Topic A</span>
+  <h2 class="stitle">Choosing a Strategy: Strengths &amp; Use Cases</h2>
+  <div class="rule"></div>
+  <table class="tb">
+    <tr><th>Strategy</th><th>Best Suited For</th></tr>
+    <tr><td><b>ETL</b></td><td>Batch processing, transformation of huge amounts of data, and establishing a centralized data warehouse for reporting and analysis.</td></tr>
+    <tr><td><b>ELT</b></td><td>Working with large amounts of data, scalable processing that uses the capabilities of contemporary data platforms.</td></tr>
+    <tr><td><b>Data Virtualization</b></td><td>Real-time access to a variety of data sources, a uniform perspective without extensive data migration or consolidation.</td></tr>
+  </table>
+  <div class="grid g2" style="margin-top:20px;">
+    <div class="card flat"><h3>Hybrid Adoption</h3><p>The special requirements of an organization and its data landscape typically lead to a <b>hybrid approach</b>.</p></div>
+    <div class="card flat"><h3>Selection Factors</h3><p>Quantity of data · acceptable latency range · complexity of transformation · need for a centralized repository.</p></div>
+  </div>
+</section>
+
+<!-- 20 ETL APPS -->
+<section class="slide" data-group="a">
+  <span class="kicker">Applications · ETL</span>
+  <h2 class="stitle">Where ETL Is Used</h2>
+  <div class="rule"></div>
+  <p class="sub">ETTL is frequently used when data must be extracted from numerous sources, transformed to a common data model, and fed into a target system for analysis and reporting.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Business Intelligence &amp; Data Warehousing</h3><p>To facilitate reporting and analysis, data is extracted from operational systems, transformed into a standardized format, and loaded into a data warehouse using ETL methods.</p></div>
+    <div class="card"><h3>Data Migration</h3><p>When migrating from one system to another, businesses use ETL to extract data from the legacy system, convert it to a compatible format, and load it into the new system.</p></div>
+    <div class="card"><h3>Mergers &amp; Acquisitions</h3><p>In M&amp;A scenarios, ETL techniques integrate data from several companies and systems into a single perspective for reporting purposes.</p></div>
+  </div>
+</section>
+
+<!-- 21 ELT APPS -->
+<section class="slide" data-group="a">
+  <span class="kicker">Applications · ELT</span>
+  <h2 class="stitle">Where ELT Is Used</h2>
+  <div class="rule"></div>
+  <p class="sub">ELT is particularly well-suited for big data scenarios, where processing is carried out within the target system using distributed processing capabilities.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Big Data Analytics</h3><p>Organizations extract massive volumes of raw data from a variety of sources, load it into a data lake or big data platform, then execute complex transformations and analysis using distributed frameworks such as <b>Apache Spark or Hadoop</b>.</p></div>
+    <div class="card"><h3>IoT Data Processing</h3><p>Sensor data from Internet of Things devices is extracted and loaded into a data platform, which stores the raw data and transforms it <b>on-demand</b> in accordance with specific analytics requirements.</p></div>
+  </div>
+</section>
+
+<!-- 22 DV APPS -->
+<section class="slide" data-group="a">
+  <span class="kicker">Applications · Data Virtualization</span>
+  <h2 class="stitle">Where Data Virtualization Is Used</h2>
+  <div class="rule"></div>
+  <p class="sub">Data virtualization creates a virtual layer, eliminating the need to physically move data while enabling real-time access and integration across sources.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Federated Data Access</h3><p>Users access and query data from databases, cloud services, APIs, and more <b>as if from a single source</b>, without duplication or consolidation.</p></div>
+    <div class="card"><h3>Real-Time Analytics</h3><p>Organizations build real-time dashboards and reports incorporating data from a variety of sources, delivering unified and up-to-date insights.</p></div>
+    <div class="card"><h3>Agile Data Integration</h3><p>New data sources can be <b>quickly added or deleted</b> from the virtual layer without disrupting existing integrations.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO a -->
+<section class="slide" data-group="a" data-video="02-data-integration-strategies">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Data Integration Strategies: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EDATA%20INTEGRATION%20STRATEGIES%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\02-data-integration-strategies.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 23 A WRAP -->
+<section class="slide" data-group="a">
+  <span class="kicker">Topic A · Wrap-Up</span>
+  <h2 class="stitle">Why These Strategies Matter</h2>
+  <div class="rule"></div>
+  <div class="def">Data integration solutions such as ETL, ELT, and data virtualization play an important part in helping organizations <b>combine, transform, and synchronize data</b> from a variety of sources, ensuring data is accurate, consistent, and readily available for decision-making and analysis.</div>
+  <div class="card flat"><h3>The Selection Criteria</h3><p style="font-size:16px;">Quantity of data &nbsp;·&nbsp; acceptable latency range &nbsp;·&nbsp; transformation complexity &nbsp;·&nbsp; centralized repository vs. real-time access need</p></div>
+</section>
+<!-- 24 B INTRO -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B</span>
+  <h2 class="stitle">Data Transformation and Mapping</h2>
+  <div class="rule"></div>
+  <div class="def">Crucial components of the data synchronization and integration process: converting data from its <b>original format</b> to the <b>target format</b>, while maintaining compatibility, consistency, and quality.</div>
+  <div class="grid g2" style="margin-top:18px;">
+    <div class="card flat"><h3>Transformation</h3><p>Changing the data itself, cleaning, standardizing, enriching, aggregating, restructuring.</p></div>
+    <div class="card flat"><h3>Mapping</h3><p>Defining how fields in the source correspond to fields in the target, so data lands in the right place.</p></div>
+  </div>
+</section>
+
+<!-- 25 B: INTEGRATION -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B · Use Case 1</span>
+  <h2 class="stitle">Data Integration</h2>
+  <div class="rule"></div>
+  <p class="sub">Transformation and mapping are essential capabilities when integrating data from numerous sources into a single view.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Merging Data from Multiple Systems</h3><p>When firms merge with or acquire other businesses, data from their various information systems must be unified and mapped to a standard data model to obtain a unified perspective.</p></div>
+    <div class="card"><h3>System Integration</h3><p>When integrating CRM, ERP, or HR systems, data transformation provides consistency and coherence across the integrated environment.</p></div>
+    <div class="card"><h3>Data Federation</h3><p>Transformation maps and combines data from databases, files, or APIs into a virtual layer, a unified, integrated picture without physically moving or replicating data.</p></div>
+  </div>
+</section>
+
+<!-- 26 B: MIGRATION -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B · Use Case 2</span>
+  <h2 class="stitle">Data Migration</h2>
+  <div class="rule"></div>
+  <p class="sub">In migration projects, data must move from a source system to a destination system, transformation and mapping play an essential role.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Legacy System Modernization</h3><p>When legacy systems are replaced by current platforms, data transformation converts data from the old system's format to a format compatible with the new system.</p></div>
+    <div class="card"><h3>Cloud Migration</h3><p>Transformation and mapping are required before migrating to the cloud to ensure the structure and format of the data are compatible with the target cloud platform's needs.</p></div>
+  </div>
+</section>
+
+<!-- 27 B: QUALITY/MDM -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B · Use Case 3</span>
+  <h2 class="stitle">Data Quality &amp; Master Data Management</h2>
+  <div class="rule"></div>
+  <p class="sub">Data quality can be improved, and MDM best practices established, through transformation and mapping.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Data Cleansing</h3><p>Transformation methods clean and standardize data: deleting duplicates, repairing errors, and assuring data integrity.</p></div>
+    <div class="card"><h3>Data Enrichment</h3><p>Transformation and mapping add new information, such as geolocation data or external reference data, improving value and utility.</p></div>
+    <div class="card"><h3>Master Data Management</h3><p>Consolidation and synchronization of master data across systems ensures master data is correct and consistent throughout the business.</p></div>
+  </div>
+</section>
+
+<!-- 28 B: ANALYTICS -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B · Use Case 4</span>
+  <h2 class="stitle">Data Analytics and Reporting</h2>
+  <div class="rule"></div>
+  <p class="sub">Transformation and mapping are required for data preparation and shaping in analytics and reporting scenarios.</p>
+  <div class="grid g3">
+    <div class="card"><h3>Data Aggregation</h3><p>Transforming and mapping data to aggregate information at numerous granularity levels, enabling analysis across dimensions such as time, geography, or product categories.</p></div>
+    <div class="card"><h3>Data Harmonization</h3><p>Converting and mapping data from various sources into a standardized format or vocabulary for uniform analysis and reporting across datasets.</p></div>
+    <div class="card"><h3>Data Denormalization</h3><p>Transforming normalized data models into denormalized structures designed for analytical queries, improving query performance.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO b -->
+<section class="slide" data-group="b" data-video="03-data-transformation-and-mapping">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Data Transformation and Mapping: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EDATA%20TRANSFORMATION%20AND%20MAPPING%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\03-data-transformation-and-mapping.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 29 B WRAP -->
+<section class="slide" data-group="b">
+  <span class="kicker">Topic B · Wrap-Up</span>
+  <h2 class="stitle">Why Transformation &amp; Mapping Matter</h2>
+  <div class="rule"></div>
+  <div class="def">Transformation and mapping guarantee that data is appropriately <b>processed, standardized, and integrated</b> into the necessary format for a variety of data-related tasks. They play an essential role in ensuring the <b>integrity, correctness, and usability</b> of data throughout integration, migration, quality management, and analytics.</div>
+</section>
+<!-- 30 C INTRO -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C</span>
+  <h2 class="stitle">Data Quality and Cleansing</h2>
+  <div class="rule"></div>
+  <div class="def">Essential components of both data integration and synchronization: data are <b>evaluated, improved, and ensured to be consistent</b> across all dimensions: accuracy, completeness, consistency, and reliability.</div>
+  <p class="sub" style="margin-top:18px;">Core techniques applied in every use case:</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    <span class="tag acc">Data Profiling</span><span class="tag acc">Data Validation</span><span class="tag acc">Standardization</span><span class="tag acc">Deduplication</span><span class="tag acc">Error Correction</span><span class="tag acc">Enrichment</span>
+  </div>
+</section>
+
+<!-- 31 C: INTEGRATION -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Use Case 1</span>
+  <h2 class="stitle">Data Integration &amp; Consolidation</h2>
+  <div class="rule"></div>
+  <p class="sub">When integrating data from numerous sources into a cohesive picture or consolidating data from multiple systems, quality and cleansing are critical.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Merging Customer Data</h3><p>Whenever customer information from multiple systems is combined into a single database, data quality methods ensure duplicate records are found and removed, and inconsistent data is standardized.</p></div>
+    <div class="card"><h3>Consolidating Product Data</h3><p>Data cleansing ensures consolidated product information from several sources has consistent attributes, repaired errors, and resolved missing information.</p></div>
+  </div>
+</section>
+
+<!-- 32 C: MIGRATION -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Use Case 2</span>
+  <h2 class="stitle">Data Migration</h2>
+  <div class="rule"></div>
+  <p class="sub">When data is transferred from one system to another or migrated to a new platform, maintaining high data quality and cleanliness is of the utmost importance.</p>
+  <div class="grid g2">
+    <div class="card"><h3>System Upgrade or Replacement</h3><p>Moving data from an older system to a more modern one: data quality protocols ensure the data is accurate, comprehensive, and compatible with the target system.</p></div>
+    <div class="card"><h3>Data Migration to the Cloud</h3><p>Data being migrated to a cloud environment must be cleaned, standardized, and compatible with the criteria of the target cloud platform, through proper cleansing and quality assurance.</p></div>
+  </div>
+</section>
+
+<!-- 33 C: MDM -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Use Case 3</span>
+  <h2 class="stitle">Master Data Management (MDM)</h2>
+  <div class="rule"></div>
+  <p class="sub">High-quality master data that acts as a single source of truth across the business depends heavily on data quality and purification.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Customer Master Data</h3><p>Data quality methods guarantee client information is correct, current, and free of duplication, paving the way for efficient customer relationship management.</p></div>
+    <div class="card"><h3>Product Master Data</h3><p>Data cleansing ensures product information is uniform, standardized, and free of errors, facilitating accurate product catalog management.</p></div>
+  </div>
+</section>
+
+<!-- 34 C: ANALYTICS -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Use Case 4</span>
+  <h2 class="stitle">Data Analytics &amp; Business Intelligence</h2>
+  <div class="rule"></div>
+  <p class="sub">Data quality and cleansing are essential for reliable and meaningful data analysis and reporting.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Cleansing Data for Analysis</h3><p>Data quality procedures discover anomalies, flaws, or inconsistencies that can affect the precision and dependability of analytical insights, then take steps to correct them.</p></div>
+    <div class="card"><h3>Standardizing Data for Reporting</h3><p>Data cleansing ensures data are in a uniform format, making it easier to maintain consistent reporting and accurate comparisons across time periods or business divisions.</p></div>
+  </div>
+</section>
+
+<!-- 35 C: COMPLIANCE -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Use Case 5</span>
+  <h2 class="stitle">Compliance &amp; Regulatory Requirements</h2>
+  <div class="rule"></div>
+  <p class="sub">Data quality and cleansing are essential to satisfy compliance standards and legal requirements such as data privacy and data accuracy.</p>
+  <div class="grid g2">
+    <div class="card"><h3>GDPR Compliance</h3><p>Data quality methods contribute to the identification and correction of inaccurate personal data, ensuring compliance with the laws of the GDPR.</p></div>
+    <div class="card"><h3>Financial Reporting</h3><p>Maintaining high data quality and performing regular cleansing guarantees accurate financial reporting, compliance with accounting standards, and fulfillment of audit requirements.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO c -->
+<section class="slide" data-group="c" data-video="04-data-quality-and-cleansing">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Data Quality and Cleansing: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EDATA%20QUALITY%20AND%20CLEANSING%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\04-data-quality-and-cleansing.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 36 C WRAP -->
+<section class="slide" data-group="c">
+  <span class="kicker">Topic C · Wrap-Up</span>
+  <h2 class="stitle">The Payoff of Quality Data</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card"><h3>Activities Involved</h3><p>Data profiling · validation · standardization · deduplication · error correction · enrichment.</p></div>
+    <div class="card"><h3>Business Benefits</h3><ul class="b check"><li>Improved decision-making</li><li>Operational efficiency</li><li>Customer satisfaction</li><li>Regulatory compliance</li></ul></div>
+  </div>
+</section>
+<!-- 37 D INTRO -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D</span>
+  <h2 class="stitle">Master Data Management (MDM)</h2>
+  <div class="rule"></div>
+  <div class="def">An all-encompassing strategy for the management and maintenance of <b>consistent, accurate, and trustworthy master data</b> across a company, including the production, cleansing, integration, and governance of master data.</div>
+  <p class="sub" style="margin-top:18px;">Master data contains essential entities:</p>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">
+    <span class="tag acc" style="font-size:13px;padding:6px 14px;">Customers</span>
+    <span class="tag acc" style="font-size:13px;padding:6px 14px;">Products</span>
+    <span class="tag acc" style="font-size:13px;padding:6px 14px;">Suppliers</span>
+    <span class="tag acc" style="font-size:13px;padding:6px 14px;">Employees</span>
+  </div>
+</section>
+
+<!-- 38 D: CUSTOMER -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Application 1</span>
+  <h2 class="stitle">Customer Data Management</h2>
+  <div class="rule"></div>
+  <p class="sub">MDM enables businesses to keep a consistent and accurate view of customer data across all systems and points of interaction.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Customer 360 View</h3><p>MDM consolidates consumer data from CRM systems, marketing platforms, and customer care systems, offering a comprehensive perspective of customer interactions and preferences.</p></div>
+    <div class="card"><h3>Personalization &amp; Targeted Marketing</h3><p>MDM guarantees customer data is correct and up to date, enabling personalized experiences, targeted marketing efforts, and relevant product suggestions.</p></div>
+  </div>
+</section>
+
+<!-- 39 D: PRODUCT -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Application 2</span>
+  <h2 class="stitle">Product Data Management</h2>
+  <div class="rule"></div>
+  <p class="sub">MDM ensures product information is consistent and trustworthy across all systems, enabling efficient catalog management and e-commerce operations.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Product Information Management (PIM)</h3><p>MDM centralizes and manages product data, attributes, descriptions, pricing, pictures, guaranteeing product information is consistent and correct across numerous sales channels.</p></div>
+    <div class="card"><h3>Omnichannel Commerce</h3><p>MDM synchronizes product data across online stores, marketplaces, and physical stores, customers get consistent product information and a seamless shopping experience everywhere.</p></div>
+  </div>
+</section>
+
+<!-- 40 D: SUPPLIER -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Application 3</span>
+  <h2 class="stitle">Supplier &amp; Vendor Data Management</h2>
+  <div class="rule"></div>
+  <p class="sub">MDM guarantees supplier and vendor information is correct and up to date, making procurement and supply chain activities more efficient.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Supplier Relationship Management</h3><p>MDM provides a single, dependable source of supplier data, contact information, certificates, performance indicators, enabling effective management, collaboration, and risk evaluation.</p></div>
+    <div class="card"><h3>Procurement Optimization</h3><p>With correct, standardized supplier data, MDM streamlines the procurement process and supports improved negotiation, contract management, and supplier consolidation.</p></div>
+  </div>
+</section>
+
+<!-- 41 D: EMPLOYEE -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Application 4</span>
+  <h2 class="stitle">Employee Data Management</h2>
+  <div class="rule"></div>
+  <p class="sub">MDM enables firms to keep employee data accurate and consistent across their many HR systems and processes.</p>
+  <div class="grid g2">
+    <div class="card"><h3>HR Data Integration</h3><p>MDM synchronizes employee data across payroll, benefits, and performance management systems, ensuring employee information is consistent and up to date across the whole organization.</p></div>
+    <div class="card"><h3>Workforce Analytics &amp; Planning</h3><p>A single source of truth for employee data facilitates reliable workforce reporting and analysis, supporting decisions on talent management, succession planning, and workforce optimization.</p></div>
+  </div>
+</section>
+
+<!-- 42 D: CROSS -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Application 5</span>
+  <h2 class="stitle">Cross-Domain Data Integration</h2>
+  <div class="rule"></div>
+  <p class="sub">MDM integrates master data from a variety of disciplines, enabling a more comprehensive understanding of business entities and the connections between them.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Customer-Product Integration</h3><p>Linking customer data with product data enables in-depth analysis of consumer preferences, purchasing habits, and product use, for targeted marketing, product suggestions, and demand forecasts.</p></div>
+    <div class="card"><h3>Vendor-Customer Integration</h3><p>Connecting vendor data with customer data supports the study of supplier performance, customer segmentation, and personalized vendor suggestions.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO d -->
+<section class="slide" data-group="d" data-video="05-master-data-management">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Master Data Management: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EMASTER%20DATA%20MANAGEMENT%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\05-master-data-management.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 43 D WRAP -->
+<section class="slide" data-group="d">
+  <span class="kicker">Topic D · Wrap-Up</span>
+  <h2 class="stitle">What MDM Delivers</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card"><h3>What It Takes</h3><p>Implementing data governance frameworks, data quality standards, and data integration strategies, ensuring master data is consistent, accurate, and reliable across the entire organization.</p></div>
+    <div class="card"><h3>What You Gain</h3><ul class="b check"><li>A single source of truth for essential business units</li><li>Improved operational efficiency &amp; decision-making</li><li>Better customer experiences</li><li>Regulatory compliance</li></ul></div>
+  </div>
+</section>
+<!-- 44 E INTRO -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E</span>
+  <h2 class="stitle">Data Synchronization and Replication</h2>
+  <div class="rule"></div>
+  <div class="def">Extremely important components of the data integration process: making certain that the same data is <b>copied and updated in a consistent manner</b> across a number of different databases or systems.</div>
+  <div class="note" style="font-size:14px;">Core techniques: <b>change data capture (CDC)</b> · <b>log-based replication</b> · <b>event-driven methods</b></div>
+</section>
+
+<!-- 45 E: DB REPLICATION -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Application 1</span>
+  <h2 class="stitle">Database Replication</h2>
+  <div class="rule"></div>
+  <p class="sub">Keeps several copies of a database synced in real-time or near real-time, providing high availability, fault tolerance, and load balancing.</p>
+  <div class="grid g2">
+    <div class="card"><h3>High Availability</h3><p>In mission-critical systems like e-commerce platforms and financial systems, replication copies data to backup servers, enabling fast failover to standby servers if the primary server fails.</p></div>
+    <div class="card"><h3>Geographic Redundancy</h3><p>Replication copies data into data centers in different locations, ensuring data integrity and enabling disaster recovery capabilities.</p></div>
+  </div>
+</section>
+
+<!-- 46 E: DISTRIBUTED -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Application 2</span>
+  <h2 class="stitle">Distributed Data Systems</h2>
+  <div class="rule"></div>
+  <p class="sub">In distributed computing environments, synchronization and replication keep data consistent and available across several nodes.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Distributed Databases</h3><p>Data synchronization guarantees updates performed on one node are disseminated to other nodes, enabling parallel processing and scalability.</p></div>
+    <div class="card"><h3>Distributed File Systems</h3><p>Systems such as the Hadoop Distributed File System (HDFS) use file synchronization and replication to guarantee data availability and improve fault tolerance.</p></div>
+  </div>
+</section>
+
+<!-- 47 E: MOBILE -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Application 3</span>
+  <h2 class="stitle">Mobile &amp; Edge Computing</h2>
+  <div class="rule"></div>
+  <p class="sub">Data synchronization is a fundamental component of both mobile and edge computing, data must sync between centralized systems and mobile or edge devices.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Mobile Applications</h3><p>Mobile apps run without an internet connection thanks to data synchronization; data syncs with the main server once connectivity is restored. Example: email programs synchronize emails between server and mobile device.</p></div>
+    <div class="card"><h3>Internet of Things (IoT)</h3><p>In IoT applications, data collected by sensors or edge devices must be synced with central systems for analysis and decision-making.</p></div>
+  </div>
+</section>
+
+<!-- 48 E: DW BI -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Application 4</span>
+  <h2 class="stitle">Data Warehousing &amp; Business Intelligence</h2>
+  <div class="rule"></div>
+  <p class="sub">Synchronization and replication update data warehouses and enable real-time or near real-time reporting and analysis.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Real-Time Reporting</h3><p>Operational data is copied in real time from source systems to data warehouses, enabling real-time reporting and analytics.</p></div>
+    <div class="card"><h3>Business Intelligence (BI)</h3><p>BI systems rely on data synchronization to guarantee reports and dashboards reflect the most recent data from a variety of sources, offering insights that are both timely and accurate.</p></div>
+  </div>
+</section>
+
+<!-- 49 E: CLOUD -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Application 5</span>
+  <h2 class="stitle">Cloud Data Integration</h2>
+  <div class="rule"></div>
+  <p class="sub">Synchronization and replication are indispensable in cloud environments for guaranteeing data integrity and accessibility across on-premises and cloud-based systems.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Hybrid Cloud Integration</h3><p>Replication between on-premises systems and cloud settings is made possible by data synchronization, maintaining data integrity and supporting hybrid cloud architectures.</p></div>
+    <div class="card"><h3>Cloud-to-Cloud Integration</h3><p>Data synchronization replicates data from one cloud platform or service to another, facilitating seamless data interchange and interoperability.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO e -->
+<section class="slide" data-group="e" data-video="06-data-synchronization-and-replication">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Data Synchronization and Replication: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EDATA%20SYNCHRONIZATION%20AND%20REPLICATION%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\06-data-synchronization-and-replication.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 50 E WRAP -->
+<section class="slide" data-group="e">
+  <span class="kicker">Topic E · Wrap-Up</span>
+  <h2 class="stitle">What Synchronization &amp; Replication Enable</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card"><h3>Methods Used</h3><p>Change data capture (CDC) · log-based replication · event-driven methods.</p></div>
+    <div class="card"><h3>Outcomes</h3><ul class="b check"><li>Consistent, up-to-date, accessible data across systems</li><li>Efficient data integration</li><li>Real-time reporting</li><li>High availability</li><li>Scalable distributed computing</li></ul></div>
+  </div>
+</section>
+<!-- 51 F INTRO -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F</span>
+  <h2 class="stitle">Real-Time Data Integration</h2>
+  <div class="rule"></div>
+  <div class="def">An approach to data integration that focuses on <b>processing and synchronizing data in real time or near real-time</b>, enabling timely and accurate data updates across different systems.</div>
+  <p class="sub" style="margin-top:18px;">Required technologies:</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    <span class="tag acc">Event-Driven Architectures</span><span class="tag acc">Streaming Data Processing</span><span class="tag acc">Real-Time Analytics</span>
+  </div>
+</section>
+
+<!-- 52 F: FINANCE -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Industry 1</span>
+  <h2 class="stitle">Financial Services</h2>
+  <div class="rule"></div>
+  <p class="sub">Real-time integration is increasingly important for real-time risk assessment, fraud detection, and compliance monitoring.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Real-Time Trade Processing</h3><p>Financial institutions combine trade data from trading platforms and exchanges in real time, determining risk exposures, monitoring holdings, and maintaining compliance with regulatory requirements.</p></div>
+    <div class="card"><h3>Fraud Detection &amp; Prevention</h3><p>Real-time integration of transactional data lets institutions detect and prevent fraud by conducting real-time analysis of trends, abnormalities, and triggers.</p></div>
+  </div>
+</section>
+
+<!-- 53 F: RETAIL -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Industry 2</span>
+  <h2 class="stitle">E-Commerce &amp; Retail</h2>
+  <div class="rule"></div>
+  <p class="sub">Crucial for inventory management, tailored marketing, and real-time order processing.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Inventory Management</h3><p>Retailers integrate inventory data in real time from numerous warehouses, storefronts, and online channels, checking stock levels accurately, enabling real-time stock availability online, and minimizing overselling.</p></div>
+    <div class="card"><h3>Personalized Marketing</h3><p>Real-time integration of customer data, browsing behavior, and transaction history lets merchants provide personalized recommendations and targeted promotions, improving engagement and conversion rates.</p></div>
+  </div>
+</section>
+
+<!-- 54 F: IOT -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Industry 3</span>
+  <h2 class="stitle">Internet of Things (IoT)</h2>
+  <div class="rule"></div>
+  <p class="sub">In IoT environments, massive amounts of sensor data must be processed and analyzed in real time for decision-making and automation, real-time integration is absolutely necessary.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Smart Manufacturing</h3><p>Real-time integration of sensor data from industrial equipment enables real-time monitoring of machine health, predictive maintenance, and optimization of production processes.</p></div>
+    <div class="card"><h3>Smart Cities</h3><p>Cities monitor and control traffic congestion, improve safety, and optimize resource allocation by integrating IoT data in real time from traffic sensors, weather sensors, and surveillance systems.</p></div>
+  </div>
+</section>
+
+<!-- 55 F: HEALTH -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Industry 4</span>
+  <h2 class="stitle">Healthcare &amp; Life Sciences</h2>
+  <div class="rule"></div>
+  <p class="sub">In medicine, real-time integration is absolutely necessary for patient monitoring, medical device integration, and real-time access to patient records.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Remote Patient Monitoring</h3><p>Integrating patient data in real time from wearable devices or medical sensors provides continuous monitoring of vital signs, notifying medical professionals of key events and enabling timely treatments.</p></div>
+    <div class="card"><h3>Electronic Health Records (EHR)</h3><p>Real-time integration of patient data from many healthcare systems guarantees medical professionals have comprehensive, up-to-date patient records for accurate diagnosis, treatment, and care coordination.</p></div>
+  </div>
+</section>
+
+<!-- 56 F: LOGISTICS -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Industry 5</span>
+  <h2 class="stitle">Logistics &amp; Supply Chain</h2>
+  <div class="rule"></div>
+  <p class="sub">Extremely important for tracking shipments, maximizing route efficiency, and guaranteeing on-time delivery.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Real-Time Tracking &amp; Tracing</h3><p>Integration of data in real time from GPS devices, RFID tags, and transportation systems lets logistics organizations track shipments live, give clients precise delivery updates, and proactively handle problems.</p></div>
+    <div class="card"><h3>Demand-Supply Matching</h3><p>Real-time integration of demand data from sales systems and supply data from inventory systems enables demand-supply matching, ensuring optimal inventory levels while minimizing stockouts or surplus inventory.</p></div>
+  </div>
+</section>
+
+<!-- VIDEO f -->
+<section class="slide" data-group="f" data-video="07-real-time-data-integration">
+  <span class="kicker">Video Explanation</span>
+  <h2 class="stitle">Real-Time Data Integration: Video Explanation</h2>
+  <div class="rule"></div>
+  <p class="sub">A short video walkthrough of this topic, presented by the assigned speaker for the section.</p>
+  <div class="videoWrap">
+    <video class="player" controls preload="metadata" playsinline poster="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20640%20360%22%3E%3Crect%20width%3D%22640%22%20height%3D%22360%22%20fill%3D%22%23f2f2f0%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22624%22%20height%3D%22344%22%20fill%3D%22none%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Ccircle%20cx%3D%22320%22%20cy%3D%22146%22%20r%3D%2252%22%20fill%3D%22%23FFD400%22%20stroke%3D%22%23111111%22%20stroke-width%3D%226%22%2F%3E%3Cpath%20d%3D%22M306%20118%20L354%20146%20L306%20174%20Z%22%20fill%3D%22%23111111%22%2F%3E%3Ctext%20x%3D%22320%22%20y%3D%22250%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2219%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3ECLICK%20TO%20PLAY%3C%2Ftext%3E%3Ctext%20x%3D%22320%22%20y%3D%22294%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-size%3D%2218%22%20font-weight%3D%22bold%22%20text-anchor%3D%22middle%22%20fill%3D%22%23111111%22%3EREAL-TIME%20DATA%20INTEGRATION%3C%2Ftext%3E%3C%2Fsvg%3E">Your browser cannot play MP4 video. Open the file directly in a browser instead.</video>
+    <div class="videoNote">Video file: <code>videos\07-real-time-data-integration.mp4</code></div>
+  </div>
+</section>
+
+
+<!-- 57 F WRAP -->
+<section class="slide" data-group="f">
+  <span class="kicker">Topic F · Wrap-Up</span>
+  <h2 class="stitle">The Value of Real-Time Integration</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card"><h3>Enabling Technologies</h3><p>Event-driven architectures · streaming data processing · real-time analytics.</p></div>
+    <div class="card"><h3>What It Enables</h3><ul class="b check"><li>More informed decisions using up-to-date, actionable data</li><li>Faster response to shifting business situations</li><li>Greater customer experiences</li></ul></div>
+  </div>
+</section>
+<!-- 58 SUMMARY -->
+<section class="slide" data-group="back">
+  <span class="kicker">Key Takeaways</span>
+  <h2 class="stitle">Summary</h2>
+  <div class="rule"></div>
+  <div class="grid g2">
+    <div class="card flat"><h3>Foundations</h3><ul class="b"><li>Synchronization keeps data consistent across sources, continuously, for old and new data alike.</li><li>Synchronization ⊂ integration; replication ⊂ synchronization, each term emphasizes a different aspect.</li><li>One-way (data push) vs. two-way (bi-directional) sync serve different needs.</li></ul></div>
+    <div class="card flat"><h3>Strategies</h3><ul class="b"><li>ETL transforms before loading; ELT transforms inside the target; virtualization queries without moving data.</li><li>Transformation &amp; mapping power integration, migration, quality, and analytics.</li><li>Quality &amp; cleansing (profiling, validation, dedup, enrichment) underpin everything.</li></ul></div>
+    <div class="card flat"><h3>Management</h3><ul class="b"><li>MDM maintains one trusted source of truth for customers, products, suppliers, employees.</li><li>Replication &amp; sync (CDC, log-based, event-driven) deliver availability and consistency.</li></ul></div>
+    <div class="card flat"><h3>Real-Time</h3><ul class="b"><li>Real-time integration powers finance, retail, IoT, healthcare, and logistics.</li><li>Event-driven architectures, streaming processing, and real-time analytics make it possible.</li></ul></div>
+  </div>
+</section>
+
+<!-- 59 THANK YOU -->
+<section class="slide" data-group="back">
+  <div class="center">
+    <div class="rule" style="width:120px;margin:0 auto 30px;"></div>
+    <h1 class="title">Thank<br>You</h1>
+    <div style="margin-top:34px;">
+      <span class="kicker">Module 4 · Data Integration and Synchronization</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="nav">
+  <button id="prevBtn">← Prev</button>
+  <button id="nextBtn">Next →</button>
+</div>
+
+<div id="toc">
+  <h2>Slide Index</h2>
+  <div id="tocGrid"></div>
+  <button class="uiBtn" id="tocClose">✕ Close</button>
+</div>
+
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  const counter=document.getElementById('counter');
+  const progress=document.getElementById('progress');
+  const toc=document.getElementById('toc');
+  const tocGrid=document.getElementById('tocGrid');
+  let idx=0;
+
+  const GROUPS=[
+    {key:'front',label:'Front Matter',presenter:''},
+    {key:'intro',label:'Introduction: How to Synchronize Data',presenter:'Glen Ford Anquilo'},
+    {key:'a',label:'Topic A: Data Integration Strategies',presenter:'Aijohn Luna'},
+    {key:'b',label:'Topic B: Data Transformation and Mapping',presenter:'Clarence U. Caray'},
+    {key:'c',label:'Topic C: Data Quality and Cleansing',presenter:'Rovyll Ren'},
+    {key:'d',label:'Topic D: Master Data Management',presenter:'Bernales, Patricia C.'},
+    {key:'e',label:'Topic E: Synchronization and Replication',presenter:'Mary ann D. Surio'},
+    {key:'f',label:'Topic F: Real-Time Data Integration',presenter:'Kaffir Gil Marino'},
+    {key:'back',label:'Closing',presenter:''}
+  ];
+  function groupOf(slide){
+    return GROUPS.find(g=>g.key===slide.dataset.group)||GROUPS[0];
+  }
+
+  const titles=slides.map(s=>{
+    const h=s.querySelector('h1.title,h2.stitle');
+    if(!h)return 'Slide';
+    return h.innerHTML
+      .replace(/<br\s*\/?>/gi,' ')
+      .replace(/<[^>]+>/g,'')
+      .replace(/&amp;/g,'&')
+      .replace(/&nbsp;/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  });
+
+  slides.forEach(s=>{
+    const g=groupOf(s);
+    if(!g.presenter)return;
+    const d=document.createElement('div');
+    d.className='presenter';
+    d.innerHTML='<span class="lb">Presented by</span><b></b>';
+    d.querySelector('b').textContent=g.presenter;
+    s.appendChild(d);
+  });
+
+  const credit=document.querySelector('.spCredit');
+  const creditName=credit.querySelector('.spName');
+
+  const seen=new Map();
+  slides.forEach((s,i)=>{
+    const g=groupOf(s);
+    let list=seen.get(g);
+    if(!list){
+      const wrap=document.createElement('div');
+      wrap.className='tocGroup';
+      const head=document.createElement('div');
+      head.className='tgHead';
+      head.innerHTML='<span class="tgLabel"></span><span class="tgBy"></span>';
+      head.querySelector('.tgLabel').textContent=g.label;
+      head.querySelector('.tgBy').textContent=g.presenter?('Presented by '+g.presenter):'';
+      list=document.createElement('div');
+      list.className='tgList';
+      wrap.appendChild(head);
+      wrap.appendChild(list);
+      tocGrid.appendChild(wrap);
+      seen.set(g,list);
+    }
+    const d=document.createElement('div');
+    d.className='tocItem';
+    d.innerHTML='<span class="tn">'+String(i+1).padStart(2,'0')+'</span><span class="tt"></span>'+(s.dataset.video?'<span class="tv">&#9654;</span>':'');
+    d.querySelector('.tt').textContent=titles[i];
+    d.onclick=()=>{go(i);setToc(false);};
+    list.appendChild(d);
+  });
+
+  const loaded=new Set();
+  function posterPortrait(caption){
+    const words=String(caption||'').split(/\s+/).filter(Boolean);
+    const lines=[];let cur='';
+    words.forEach(w=>{
+      if((cur+' '+w).trim().length>18){lines.push(cur.trim());cur=w;}
+      else{cur+=' '+w;}
+    });
+    if(cur.trim())lines.push(cur.trim());
+    const txt=lines.slice(0,3).map((l,i)=>'<text x="180" y="'+(430+i*26)+'" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="bold" text-anchor="middle" fill="#111111">'+l.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</text>').join('');
+    const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 640">'
+      +'<rect width="360" height="640" fill="#f2f2f0"/>'
+      +'<rect x="8" y="8" width="344" height="624" fill="none" stroke="#111111" stroke-width="6"/>'
+      +'<circle cx="180" cy="268" r="52" fill="#FFD400" stroke="#111111" stroke-width="6"/>'
+      +'<path d="M166 240 L214 268 L166 296 Z" fill="#111111"/>'
+      +'<text x="180" y="378" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="bold" text-anchor="middle" fill="#111111">CLICK TO PLAY</text>'
+      +txt+'</svg>';
+    return 'data:image/svg+xml,'+encodeURIComponent(svg);
+  }
+  function loadVideo(s){
+    if(!s.dataset.video||loaded.has(s))return;
+    loaded.add(s);
+    const v=s.querySelector('video.player');
+    if(!v)return;
+    v.dataset.file=s.dataset.video;
+    v.addEventListener('error',()=>{
+      const box=s.querySelector('.videoWrap');
+      if(!box||box.querySelector('.videoMissing'))return;
+      const n=document.createElement('div');
+      n.className='videoMissing';
+      n.innerHTML='Video file not found. Add <code></code> inside the <code>videos</code> folder, then reload.';
+      n.querySelector('code').textContent='videos\\'+v.dataset.file+'.mp4';
+      box.appendChild(n);
+    });
+    v.src='videos/'+s.dataset.video+'.mp4';
+    const title=s.querySelector('.stitle');
+    v.addEventListener('loadedmetadata',()=>{
+      const w=v.videoWidth,h=v.videoHeight;
+      if(!w||!h||w>=h)return;
+      v.classList.add('portrait');
+      v.style.aspectRatio=w+'/'+h;
+      if(title)v.poster=posterPortrait(title.textContent.replace(/:\s*Video Explanation\s*$/i,'').trim());
+    });
+  }
+
+  function go(n){
+    idx=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+    loadVideo(slides[idx]);
+    const speaker=groupOf(slides[idx]).presenter;
+    credit.hidden=!speaker;
+    if(speaker)creditName.textContent=speaker;
+    counter.textContent=(idx+1)+' / '+slides.length;
+    progress.style.width=((idx+1)/slides.length*100)+'%';
+    document.title=titles[idx]+' · Module 4';
+    if(history.replaceState)history.replaceState(null,'','#'+(idx+1));
+  }
+  const tocBtn=document.getElementById('tocBtn');
+  function setToc(open){
+    toc.classList.toggle('open',open);
+    tocBtn.classList.toggle('on',open);
+    document.body.classList.toggle('toc-open',open);
+    tocBtn.setAttribute('aria-expanded',open?'true':'false');
+  }
+  document.getElementById('prevBtn').onclick=()=>go(idx-1);
+  document.getElementById('nextBtn').onclick=()=>go(idx+1);
+  tocBtn.onclick=()=>setToc(!toc.classList.contains('open'));
+  document.getElementById('tocClose').onclick=()=>setToc(false);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(idx+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(idx-1);}
+    else if(e.key==='Home'){go(0);}
+    else if(e.key==='End'){go(slides.length-1);}
+    else if(e.key==='g'||e.key==='G'){setToc(!toc.classList.contains('open'));}
+    else if(e.key==='Escape'){setToc(false);}
+  });
+  let tx=null;
+  document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(tx===null)return;
+    const dx=e.changedTouches[0].clientX-tx;
+    if(Math.abs(dx)>50)go(idx+(dx<0?1:-1));
+    tx=null;
+  },{passive:true});
+  const h=parseInt(location.hash.replace('#',''));
+  go(isNaN(h)?0:h-1);
+})();
+</script>
+</body>
+</html>
