@@ -1,0 +1,6 @@
+# Keep the deck's original LF line endings; do not rewrite on checkout.
+*.html text eol=lf
+*.txt  text eol=lf
+
+# Videos are binary.
+*.mp4 binary
